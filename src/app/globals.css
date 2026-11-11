@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: #e63b2e;
+}
+
+html,
+body {
+  background: #fafaf9;
+  color: #18181b;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular numerals so the countdown never jumps in width */
+.timer-digits {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
