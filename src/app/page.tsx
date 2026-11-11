@@ -17,8 +17,7 @@ function uid() {
 }
 
 // Visitor-only app, styled like enzi-ws:
-// Poppins for UI, Playfair (display serif) for the hero — the big
-// countdown and the activity name. BSI palette: teal #00A39D,
+// Helvetica Neue only, everywhere. BSI palette: teal #00A39D,
 // gold #F8AD3C, deep teal #003D36. Buttons rounded-xl, chips
 // rounded-full, one type scale, white pages, slate text.
 // No Google Sign-In, no login button anywhere. Activity settings
@@ -170,11 +169,10 @@ export default function Home() {
     return () => clearInterval(id);
   }, [running]);
 
+  // Web title is just "Enzi Timer" — always, even while running.
   useEffect(() => {
-    document.title = running || remaining !== total
-      ? `${formatDuration(remaining)} — ${current?.name || "Enzi Timer"}`
-      : "Enzi Timer — Focus, beautifully timed";
-  }, [remaining, running, total, current?.name]);
+    document.title = "Enzi Timer";
+  }, []);
 
   const start = () => {
     if (remaining <= 0) {
@@ -254,7 +252,6 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <span className="text-[15px] font-semibold tracking-tight text-slate-900">Enzi Timer</span>
             <span className="chip chip-bsi">Visitor</span>
-            <span className="hidden sm:inline eyebrow">Focus — beautifully timed</span>
           </div>
           <button onClick={() => setSettingsOpen(true)} className="btn-primary">
             + New activity
@@ -262,9 +259,9 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Timer */}
+      {/* Timer — full width */}
       <section className="flex-1 mx-auto w-full max-w-5xl px-5 md:px-8 py-10 md:py-16">
-        <div className="grid md:grid-cols-[1fr_320px] gap-10 md:gap-14">
+        <div>
           <div>
             <p className="eyebrow">
               Activity {String(Math.min(index + 1, activities.length)).padStart(2, "0")} / {String(activities.length).padStart(2, "0")}
@@ -278,7 +275,7 @@ export default function Home() {
                 aria-label="Previous activity"
                 className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 bg-white text-xl leading-none text-slate-700 hover:bg-slate-50 transition-colors"
               >‹</button>
-              <h1 className="font-display text-center text-3xl md:text-4xl leading-tight font-semibold tracking-tight text-bsi-900 truncate px-2">
+              <h1 className="text-center text-3xl md:text-4xl leading-tight font-semibold tracking-tight text-bsi-900 truncate px-2">
                 {current?.name}
               </h1>
               <button
@@ -293,9 +290,9 @@ export default function Home() {
               {finished ? <span className="text-bsi-700 font-medium"> · Done — nice work.</span> : null}
             </p>
 
-            {/* Countdown — Playfair display serif, deep teal, like the enzi-ws hero */}
+            {/* Countdown — Helvetica Neue, deep teal */}
             <div className="mt-8 md:mt-10 text-center">
-              <div className="timer-digits font-display text-[84px] leading-none md:text-[148px] font-semibold tracking-tight text-bsi-900">
+              <div className="timer-digits text-[84px] leading-none md:text-[148px] font-semibold tracking-tight text-bsi-900">
                 {formatDuration(remaining)}
               </div>
               <div className="mt-6 h-[3px] w-full bg-slate-200 overflow-hidden">
@@ -325,39 +322,39 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Activity list */}
-          <aside className="md:border-l md:border-slate-200 md:pl-8">
+          {/* Activities — horizontal scrollable chips below the timer */}
+          <div className="mt-12">
             <div className="flex items-baseline justify-between">
               <h2 className="eyebrow">Activities</h2>
               <button onClick={() => setSettingsOpen(true)} className="text-sm font-semibold text-bsi-700 underline underline-offset-4 hover:text-bsi-900">Manage</button>
             </div>
-            <ul className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {activities.map((a, i) => (
-                <li key={a.id}>
-                  <button
-                    onClick={() => selectActivity(i)}
-                    className={`w-full flex items-center justify-between gap-3 py-3.5 text-left ${i === index ? "text-slate-900" : "text-slate-500 hover:text-slate-900"}`}
-                  >
-                    <span className="flex items-center gap-3 min-w-0">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${i === index ? "bg-gold-400" : "bg-slate-300"}`} />
-                      <span className="truncate text-[15px] font-medium">{a.name}</span>
-                    </span>
-                    <span className="tabular-nums text-sm shrink-0">{formatDuration(a.durationSeconds)}</span>
-                  </button>
-                </li>
+                <button
+                  key={a.id}
+                  onClick={() => selectActivity(i)}
+                  className={`shrink-0 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
+                    i === index
+                      ? "border-bsi-600 bg-bsi-600 text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                  }`}
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${i === index ? "bg-gold-400" : "bg-slate-300"}`} />
+                  {a.name}
+                  <span className={`tabular-nums ${i === index ? "text-white/80" : "text-slate-400"}`}>{formatDuration(a.durationSeconds)}</span>
+                </button>
               ))}
-            </ul>
-            <p className="mt-4 text-sm leading-relaxed text-slate-500">
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
               No sign-in needed — just use it. Your activities are saved to Supabase, and also kept on this device.
             </p>
-          </aside>
+          </div>
         </div>
       </section>
 
       <footer className="border-t border-slate-200">
-        <div className="mx-auto max-w-5xl px-5 md:px-8 py-5 flex items-center justify-between text-xs text-slate-400">
-          <span>ENZI TIMER — 01</span>
-          <span>Visitor · {isSupabaseConfigured ? "Supabase" : "On-device storage"}</span>
+        <div className="mx-auto max-w-5xl px-5 md:px-8 py-5 text-center text-xs text-slate-400">
+          Enzi Timer
         </div>
       </footer>
 

@@ -16,9 +16,10 @@ A minimalist timer, styled like enzi-ws. Pick an activity, press Start, stay wit
 
 ## Styling — like enzi-ws
 
-- Poppins for UI, Playfair Display for the hero (countdown + activity name)
+- Helvetica Neue only, everywhere (system stack, no webfont)
 - BSI palette: teal #00A39D, gold #F8AD3C, deep teal #003D36
 - Buttons rounded-xl, chips rounded-full, one type scale, white pages
+- Title is just "Enzi Timer"; footer is just "Enzi Timer"
 
 ## Run locally
 

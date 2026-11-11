@@ -5,11 +5,17 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        // enzi-ws: Poppins is the standard app typeface.
-        sans: ["var(--font-poppins)", "Poppins", "ui-sans-serif", "system-ui", "sans-serif"],
-        // Playfair is the display serif — enzi-ws uses it for the hero only.
-        // Here: the big countdown + activity name, the hero of this page.
-        display: ["var(--font-display)", "Georgia", "Times New Roman", "serif"],
+        // Helvetica Neue only — everywhere, including the countdown.
+        // System stack, as in enzi-ws: Helvetica Neue on Apple
+        // devices, Helvetica/Arial elsewhere. No webfont download.
+        sans: [
+          '"Helvetica Neue"',
+          "Helvetica",
+          "Arial",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       colors: {
         // ── BSI brand palette, exactly as in enzi-ws ──────────
