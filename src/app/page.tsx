@@ -22,8 +22,9 @@ function uid() {
 // No Google Sign-In, no login button anywhere. Activity settings
 // are stored in the SAME Supabase project as enzi-ws, in the
 // enzi_timer_activities table only — no workshop table is touched.
-// Each visitor is keyed by a per-browser visitor id (localStorage),
-// so no account is needed. If Supabase is not configured,
+// The activity list is SHARED: every browser, tab, and device sees
+// the same activities (the visitor id is only recorded for
+// provenance, never used to filter). If Supabase is not configured,
 // activities save to localStorage.
 const TABLE = "enzi_timer_activities";
 
@@ -62,7 +63,10 @@ export default function Home() {
     setVisitorId(getVisitorId());
   }, []);
 
-  // ---- Load activities: Supabase for this visitor, else localStorage ----
+  // ---- Load activities: shared list from Supabase, else localStorage ----
+  // Every browser sees the SAME list — no filtering by visitor id.
+  // (An incognito window used to get its own empty list and the
+  // default activities, which is why the workshop list was missing.)
   useEffect(() => {
     if (!visitorId) return;
     if (!isSupabaseConfigured || !supabase) {
@@ -78,7 +82,6 @@ export default function Home() {
       const first = await supabase
         .from(TABLE)
         .select("id, name, duration_seconds, created_at, description")
-        .eq("visitor_id", visitorId)
         .order("created_at", { ascending: true });
       type Row = {
         id: unknown;
@@ -93,7 +96,6 @@ export default function Home() {
         const second = await supabase
           .from(TABLE)
           .select("id, name, duration_seconds, created_at")
-          .eq("visitor_id", visitorId)
           .order("created_at", { ascending: true });
         rows = (second.data as Row[] | null) ?? null;
         error = second.error;
@@ -274,7 +276,9 @@ export default function Home() {
     const list = activities.filter((a) => a.id !== id);
     setActivities(list);
     if (isSupabaseConfigured && supabase && visitorId) {
-      await supabase.from(TABLE).delete().eq("id", id).eq("visitor_id", visitorId);
+      // Shared list: delete by id only — the row may have been
+      // created from a different browser.
+      await supabase.from(TABLE).delete().eq("id", id);
     }
     const removedIndex = activities.findIndex((a) => a.id === id);
     if (removedIndex <= index) selectActivity(Math.max(0, index - 1), list);
@@ -285,11 +289,11 @@ export default function Home() {
     setActivities(next);
     setEditingDescription(false);
     if (isSupabaseConfigured && supabase && visitorId) {
+      // Shared list: update by id only.
       const { error } = await supabase
         .from(TABLE)
         .update({ description })
-        .eq("id", id)
-        .eq("visitor_id", visitorId);
+        .eq("id", id);
       if (error && /description/i.test(error.message)) {
         // description column not in Supabase yet — the text is still
         // kept on this device and will sync once the column exists.
