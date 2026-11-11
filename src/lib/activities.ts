@@ -34,6 +34,21 @@ export function formatDurationLong(totalSeconds: number): string {
 }
 
 const LOCAL_KEY = "enzi-timer-activities-v1";
+const VISITOR_KEY = "enzi-timer-visitor-id-v1";
+
+/** Stable per-browser visitor id — no sign-in, no account. */
+export function getVisitorId(): string {
+  try {
+    let id = localStorage.getItem(VISITOR_KEY);
+    if (!id) {
+      id = `visitor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(VISITOR_KEY, id);
+    }
+    return id;
+  } catch {
+    return `visitor-${Date.now().toString(36)}`;
+  }
+}
 
 export function loadLocalActivities(): Activity[] | null {
   try {

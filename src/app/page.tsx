@@ -1,21 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  deleteDoc,
-} from "firebase/firestore";
-import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth";
-import { auth, db, firebaseEnabled } from "@/lib/firebase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   DEFAULT_ACTIVITIES,
   formatDuration,
   formatDurationLong,
+  getVisitorId,
   loadLocalActivities,
   saveLocalActivities,
   type Activity,
@@ -31,9 +22,13 @@ function uid() {
 // gold #F8AD3C, deep teal #003D36. Buttons rounded-xl, chips
 // rounded-full, one type scale, white pages, slate text.
 // No Google Sign-In, no login button anywhere. Activity settings
-// are stored in Firestore under the visitor's invisible anonymous
-// id (users/{uid}/activities). If Firebase is not configured,
+// are stored in the SAME Supabase project as enzi-ws, in the
+// enzi_timer_activities table only — no workshop table is touched.
+// Each visitor is keyed by a per-browser visitor id (localStorage),
+// so no account is needed. If Supabase is not configured,
 // activities save to localStorage.
+const TABLE = "enzi_timer_activities";
+
 export default function Home() {
   const [activities, setActivities] = useState<Activity[]>(DEFAULT_ACTIVITIES);
   const [index, setIndex] = useState(0);
@@ -41,7 +36,7 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [visitorId, setVisitorId] = useState("");
   const [storeNote, setStoreNote] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -60,67 +55,71 @@ export default function Home() {
   const total = current?.durationSeconds || 0;
   const progress = total > 0 ? 1 - remaining / total : 0;
 
-  // ---- Invisible visitor identity (anonymous auth, no UI, no Google) ----
+  // ---- Visitor id (per browser, no sign-in) ----
   useEffect(() => {
-    const authInstance = auth;
-    if (!firebaseEnabled || !authInstance) {
-      setStoreNote("Saved on this device");
-      return;
-    }
-    const unsub = onAuthStateChanged(authInstance, (u) => {
-      if (u) {
-        setUser(u);
-      } else {
-        void signInAnonymously(authInstance).catch(() => {
-          setStoreNote("Saved on this device");
-        });
-      }
-    });
-    return () => unsub();
+    setVisitorId(getVisitorId());
   }, []);
 
-  // ---- Load activities: Firestore for the visitor, else localStorage ----
+  // ---- Load activities: Supabase for this visitor, else localStorage ----
   useEffect(() => {
-    if (firebaseEnabled && db && user) {
-      const q = query(
-        collection(db, "users", user.uid, "activities"),
-        orderBy("createdAt", "asc")
-      );
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Activity, "id">) }));
-          if (list.length > 0) {
-            setActivities(list);
-          } else {
-            // First visit: seed Firestore with the current list
-            activitiesRef.current.forEach((a) => {
-              void setDoc(doc(db as never, "users", user.uid, "activities", a.id), {
-                name: a.name,
-                durationSeconds: a.durationSeconds,
-                createdAt: a.createdAt,
-              } as never);
-            });
-          }
-          setStoreNote("Saved to Firebase");
-          setLoaded(true);
-        },
-        () => {
-          setStoreNote("Saved on this device");
-          setLoaded(true);
-        }
-      );
-      return () => unsub();
-    }
-    if (!loaded) {
+    if (!visitorId) return;
+    if (!isSupabaseConfigured || !supabase) {
       const local = loadLocalActivities();
       if (local) setActivities(local);
+      setStoreNote("Saved on this device");
       setLoaded(true);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select("id, name, duration_seconds, created_at")
+        .eq("visitor_id", visitorId)
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        const local = loadLocalActivities();
+        if (local) setActivities(local);
+        setStoreNote("Saved on this device");
+        setLoaded(true);
+        return;
+      }
+      const list: Activity[] = (data || [])
+        .filter(
+          (r) =>
+            Boolean(r && typeof r.name === "string" && Number(r.duration_seconds) > 0)
+        )
+        .map((r) => ({
+          id: String(r.id),
+          name: String(r.name),
+          durationSeconds: Number(r.duration_seconds),
+          createdAt: Number(r.created_at),
+        }));
+      if (list.length > 0) {
+        setActivities(list);
+      } else {
+        // First visit: seed Supabase with the current list
+        const seed = activitiesRef.current;
+        await supabase.from(TABLE).insert(
+          seed.map((a) => ({
+            id: a.id,
+            visitor_id: visitorId,
+            name: a.name,
+            duration_seconds: a.durationSeconds,
+            created_at: a.createdAt,
+          }))
+        );
+      }
+      setStoreNote("Saved to Supabase");
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visitorId]);
 
-  // Persist locally as well, so the timer works offline / before Firebase loads
+  // Persist locally as well, so the timer works offline / before Supabase loads
   useEffect(() => {
     if (!loaded) return;
     saveLocalActivities(activities);
@@ -215,12 +214,14 @@ export default function Home() {
     const a: Activity = { id: uid(), name, durationSeconds, createdAt: Date.now() };
     const next = [...activities, a];
     setActivities(next);
-    if (firebaseEnabled && db && user) {
-      await setDoc(doc(db, "users", user.uid, "activities", a.id), {
+    if (isSupabaseConfigured && supabase && visitorId) {
+      await supabase.from(TABLE).insert({
+        id: a.id,
+        visitor_id: visitorId,
         name: a.name,
-        durationSeconds: a.durationSeconds,
-        createdAt: a.createdAt,
-      }).catch(() => undefined);
+        duration_seconds: a.durationSeconds,
+        created_at: a.createdAt,
+      });
     }
     setNewName("");
     setNewHours("");
@@ -238,8 +239,8 @@ export default function Home() {
     if (activities.length <= 1) return;
     const list = activities.filter((a) => a.id !== id);
     setActivities(list);
-    if (firebaseEnabled && db && user) {
-      await deleteDoc(doc(db, "users", user.uid, "activities", id)).catch(() => undefined);
+    if (isSupabaseConfigured && supabase && visitorId) {
+      await supabase.from(TABLE).delete().eq("id", id).eq("visitor_id", visitorId);
     }
     const removedIndex = activities.findIndex((a) => a.id === id);
     if (removedIndex <= index) selectActivity(Math.max(0, index - 1), list);
@@ -347,7 +348,7 @@ export default function Home() {
               ))}
             </ul>
             <p className="mt-4 text-sm leading-relaxed text-slate-500">
-              No sign-in needed — just use it. Your activities are saved to Firebase, and also kept on this device.
+              No sign-in needed — just use it. Your activities are saved to Supabase, and also kept on this device.
             </p>
           </aside>
         </div>
@@ -356,7 +357,7 @@ export default function Home() {
       <footer className="border-t border-slate-200">
         <div className="mx-auto max-w-5xl px-5 md:px-8 py-5 flex items-center justify-between text-xs text-slate-400">
           <span>ENZI TIMER — 01</span>
-          <span>Visitor · {firebaseEnabled ? "Firebase" : "On-device storage"}</span>
+          <span>Visitor · {isSupabaseConfigured ? "Supabase" : "On-device storage"}</span>
         </div>
       </footer>
 

@@ -7,9 +7,12 @@ A minimalist timer, styled like enzi-ws. Pick an activity, press Start, stay wit
 - Start / Pause / Stop-Reset, with a thin progress bar and a soft chime on finish
 - New-activity slide-over: name + hours / minutes / seconds
 - Visitor-only: no sign-in, no Google login anywhere
-- Activity settings are stored in Firestore (`users/{uid}/activities`) under
-  an invisible anonymous visitor id — no Firebase keys: activities save
-  to localStorage on this device
+- Activity settings are stored in Supabase — the SAME project as enzi-ws
+  (wjmaaagrlmwcesmovfwr), table `enzi_timer_activities` only.
+  Each visitor is keyed by a per-browser visitor id, so no account is
+  needed. No Firebase keys: activities save to localStorage on this device.
+  DO NOT DELETE that table from the enzi-ws project — it belongs to
+  Enzi Timer, not to the Bewize Workshop.
 
 ## Styling — like enzi-ws
 
@@ -21,19 +24,30 @@ A minimalist timer, styled like enzi-ws. Pick an activity, press Start, stay wit
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in Firebase web-app keys
+cp .env.example .env.local   # fill in the enzi-ws Supabase URL + anon key
 npm run dev
 ```
 
-## Firebase setup
+## Supabase setup
 
-1. Firebase Console → create a project → Add a Web app → copy the config
-   into `.env.local` (`NEXT_PUBLIC_FIREBASE_*`) and into Vercel env vars.
-2. Authentication → Sign-in method → enable **Anonymous** (do NOT enable Google).
-3. Firestore Database → Create database (production mode) → the app reads/writes
-   `users/{uid}/activities` only for that visitor's anonymous id.
+The table already exists in the enzi-ws Supabase project:
 
-Until the keys are set, the app runs in local mode.
+```sql
+CREATE TABLE IF NOT EXISTS enzi_timer_activities (
+  id TEXT PRIMARY KEY,
+  visitor_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  duration_seconds INTEGER NOT NULL CHECK (duration_seconds > 0),
+  created_at BIGINT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE enzi_timer_activities DISABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE enzi_timer_activities IS 'Enzi Timer (enzi-timer.vercel.app) — visitor activity settings. DO NOT DELETE: this table belongs to Enzi Timer, not to the Bewize Workshop.';
+```
+
+Env vars (same values as enzi-ws): `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Until they are set, the app runs
+in local mode.
 
 ## Deploy
 
