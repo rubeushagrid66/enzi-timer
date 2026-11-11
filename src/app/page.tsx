@@ -36,7 +36,6 @@ export default function Home() {
   const [finished, setFinished] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [visitorId, setVisitorId] = useState("");
-  const [storeNote, setStoreNote] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   // New-activity form
@@ -65,7 +64,6 @@ export default function Home() {
     if (!isSupabaseConfigured || !supabase) {
       const local = loadLocalActivities();
       if (local) setActivities(local);
-      setStoreNote("Saved on this device");
       setLoaded(true);
       return;
     }
@@ -80,8 +78,7 @@ export default function Home() {
       if (error) {
         const local = loadLocalActivities();
         if (local) setActivities(local);
-        setStoreNote("Saved on this device");
-        setLoaded(true);
+          setLoaded(true);
         return;
       }
       const list: Activity[] = (data || [])
@@ -110,7 +107,6 @@ export default function Home() {
           }))
         );
       }
-      setStoreNote("Saved to Supabase");
       setLoaded(true);
     })();
     return () => {
@@ -265,7 +261,6 @@ export default function Home() {
           <div>
             <p className="eyebrow">
               Activity {String(Math.min(index + 1, activities.length)).padStart(2, "0")} / {String(activities.length).padStart(2, "0")}
-              {storeNote ? <span className="normal-case tracking-normal"> · {storeNote}</span> : null}
             </p>
 
             {/* Prev / Next */}
@@ -345,9 +340,6 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-sm text-slate-500">
-              No sign-in needed — just use it. Your activities are saved to Supabase, and also kept on this device.
-            </p>
           </div>
         </div>
       </section>
