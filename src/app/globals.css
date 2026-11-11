@@ -3,18 +3,134 @@
 @tailwind utilities;
 
 :root {
-  --accent: #e63b2e;
+  --background: #ffffff;
+  --foreground: #0f172a;
 }
 
-html,
 body {
-  background: #fafaf9;
-  color: #18181b;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-poppins), Poppins, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Type scale, exactly as in enzi-ws ─────────────────────────
+   One clean step per level (36 / 30 / 20 / 16 / 16 / 14 / 12),
+   generous line-heights. Body copy is 16px with 1.625 line-height. */
+@layer base {
+  h1 {
+    @apply text-3xl font-bold leading-[1.2] tracking-tight text-slate-900 sm:text-4xl;
+  }
+  h2 {
+    @apply text-2xl font-bold leading-[1.25] tracking-tight text-slate-900 sm:text-3xl;
+  }
+  h3 {
+    @apply text-xl font-semibold leading-snug text-slate-900;
+  }
+  h4 {
+    @apply text-base font-semibold leading-snug text-slate-900;
+  }
+  p {
+    @apply text-base leading-relaxed text-slate-700;
+  }
+  small {
+    @apply text-sm leading-relaxed text-slate-600;
+  }
+  ::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .shadow-xs {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+  /* Display serif (Playfair via next/font, Georgia fallback). */
+  .font-display {
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  }
+}
+
+@layer components {
+  /* Buttons — rounded-xl, one style each. Primary is BSI teal. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-bsi-600 px-3.5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-bsi-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bsi-500 focus-visible:ring-offset-2 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bsi-500 focus-visible:ring-offset-2 disabled:opacity-50;
+  }
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bsi-500 focus-visible:ring-offset-2 disabled:opacity-50;
+  }
+  /* Chip / label — THE standard chip. One radius (rounded-full)
+     and BSI tints only, so a label reads the same on every page. */
+  .chip {
+    @apply inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .chip-bsi {
+    @apply border-bsi-200 bg-bsi-50 text-bsi-800;
+  }
+  .chip-gold {
+    @apply border-gold-200 bg-gold-50 text-gold-800;
+  }
+  .chip-neutral {
+    @apply border-slate-200 bg-slate-100 text-slate-700;
+  }
+  .chip-deep {
+    @apply border-bsi-300 bg-bsi-100 text-bsi-900;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  /* Type scale — page titles and eyebrows are the same everywhere. */
+  .page-title {
+    @apply text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400;
+  }
+  .input {
+    @apply rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-base text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-bsi-500;
+  }
+  .field-label {
+    @apply mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-xs;
+  }
+  .section-title {
+    @apply text-lg font-semibold text-slate-900;
+  }
+  .section-sub {
+    @apply text-sm text-slate-500;
+  }
+}
+
+/* iOS Safari auto-zooms when a focused text field is smaller than 16px.
+   Keep every text-like field at 16px or larger. */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+textarea,
+select {
+  font-size: 16px;
 }
 
 /* Tabular numerals so the countdown never jumps in width */
 .timer-digits {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
 }
