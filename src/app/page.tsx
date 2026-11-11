@@ -5,7 +5,6 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   DEFAULT_ACTIVITIES,
   formatDuration,
-  formatDurationLong,
   getVisitorId,
   loadLocalActivities,
   saveLocalActivities,
@@ -40,10 +39,15 @@ export default function Home() {
 
   // New-activity form
   const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [newHours, setNewHours] = useState("");
   const [newMinutes, setNewMinutes] = useState("25");
   const [newSeconds, setNewSeconds] = useState("");
   const [formError, setFormError] = useState("");
+
+  // Description editor (below the activity title)
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState("");
 
   const endAtRef = useRef<number | null>(null);
   const activitiesRef = useRef(activities);
@@ -69,11 +73,32 @@ export default function Home() {
     }
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
+      // Try the full column set first; if the description column
+      // does not exist yet in Supabase, fall back to the old set.
+      const first = await supabase
         .from(TABLE)
-        .select("id, name, duration_seconds, created_at")
+        .select("id, name, duration_seconds, created_at, description")
         .eq("visitor_id", visitorId)
         .order("created_at", { ascending: true });
+      type Row = {
+        id: unknown;
+        name: unknown;
+        duration_seconds: unknown;
+        created_at: unknown;
+        description?: unknown;
+      };
+      let rows: Row[] | null = (first.data as Row[] | null) ?? null;
+      let error = first.error;
+      if (error && /description/i.test(error.message)) {
+        const second = await supabase
+          .from(TABLE)
+          .select("id, name, duration_seconds, created_at")
+          .eq("visitor_id", visitorId)
+          .order("created_at", { ascending: true });
+        rows = (second.data as Row[] | null) ?? null;
+        error = second.error;
+      }
+      const data = rows;
       if (cancelled) return;
       if (error) {
         const local = loadLocalActivities();
@@ -91,21 +116,29 @@ export default function Home() {
           name: String(r.name),
           durationSeconds: Number(r.duration_seconds),
           createdAt: Number(r.created_at),
+          description: typeof (r as { description?: unknown }).description === "string"
+            ? String((r as { description?: unknown }).description)
+            : "",
         }));
       if (list.length > 0) {
         setActivities(list);
       } else {
         // First visit: seed Supabase with the current list
         const seed = activitiesRef.current;
-        await supabase.from(TABLE).insert(
-          seed.map((a) => ({
-            id: a.id,
-            visitor_id: visitorId,
-            name: a.name,
-            duration_seconds: a.durationSeconds,
-            created_at: a.createdAt,
-          }))
-        );
+        const rows = seed.map((a) => ({
+          id: a.id,
+          visitor_id: visitorId,
+          name: a.name,
+          duration_seconds: a.durationSeconds,
+          created_at: a.createdAt,
+          description: a.description || "",
+        }));
+        const seedRes = await supabase.from(TABLE).insert(rows);
+        if (seedRes.error && /description/i.test(seedRes.error.message)) {
+          await supabase.from(TABLE).insert(
+            rows.map(({ description: _d, ...rest }) => rest)
+          );
+        }
       }
       setLoaded(true);
     })();
@@ -205,19 +238,26 @@ export default function Home() {
     if (!name) return setFormError("Give the activity a name.");
     if (durationSeconds <= 0) return setFormError("Set a duration longer than 0.");
     if (durationSeconds > 24 * 3600) return setFormError("Keep it under 24 hours.");
-    const a: Activity = { id: uid(), name, durationSeconds, createdAt: Date.now() };
+    const a: Activity = { id: uid(), name, durationSeconds, createdAt: Date.now(), description: newDescription.trim() };
     const next = [...activities, a];
     setActivities(next);
     if (isSupabaseConfigured && supabase && visitorId) {
-      await supabase.from(TABLE).insert({
+      const row = {
         id: a.id,
         visitor_id: visitorId,
         name: a.name,
         duration_seconds: a.durationSeconds,
         created_at: a.createdAt,
-      });
+        description: a.description || "",
+      };
+      const { error } = await supabase.from(TABLE).insert(row);
+      if (error && /description/i.test(error.message)) {
+        const { description: _d, ...legacyRow } = row;
+        await supabase.from(TABLE).insert(legacyRow);
+      }
     }
     setNewName("");
+    setNewDescription("");
     setNewHours("");
     setNewMinutes("25");
     setNewSeconds("");
@@ -238,6 +278,23 @@ export default function Home() {
     }
     const removedIndex = activities.findIndex((a) => a.id === id);
     if (removedIndex <= index) selectActivity(Math.max(0, index - 1), list);
+  };
+
+  const saveDescription = async (id: string, description: string) => {
+    const next = activities.map((a) => (a.id === id ? { ...a, description } : a));
+    setActivities(next);
+    setEditingDescription(false);
+    if (isSupabaseConfigured && supabase && visitorId) {
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ description })
+        .eq("id", id)
+        .eq("visitor_id", visitorId);
+      if (error && /description/i.test(error.message)) {
+        // description column not in Supabase yet — the text is still
+        // kept on this device and will sync once the column exists.
+      }
+    }
   };
 
   return (
@@ -280,10 +337,56 @@ export default function Home() {
               >›</button>
             </div>
 
-            <p className="mt-2 text-center text-sm text-slate-500">
-              Total duration <span className="text-slate-900 font-medium tabular-nums">{formatDurationLong(total)}</span>
-              {finished ? <span className="text-bsi-700 font-medium"> · Done — nice work.</span> : null}
-            </p>
+            {/* Description — below the title, replaces the total duration line */}
+            <div className="mt-3 text-center">
+              {editingDescription ? (
+                <div className="mx-auto max-w-xl">
+                  <textarea
+                    value={descriptionDraft}
+                    onChange={(e) => setDescriptionDraft(e.target.value)}
+                    placeholder="Write a short description for this activity…"
+                    rows={3}
+                    autoFocus
+                    className="input w-full resize-none text-left"
+                  />
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => void saveDescription(current.id, descriptionDraft.trim())}
+                      className="btn-primary px-5 py-2 text-sm"
+                    >
+                      Save description
+                    </button>
+                    <button
+                      onClick={() => setEditingDescription(false)}
+                      className="btn-secondary px-5 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : current.description ? (
+                <button
+                  onClick={() => {
+                    setDescriptionDraft(current.description || "");
+                    setEditingDescription(true);
+                  }}
+                  className="mx-auto block max-w-xl text-base leading-relaxed text-slate-600 hover:text-slate-900"
+                  title="Click to edit the description"
+                >
+                  {current.description}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setDescriptionDraft("");
+                    setEditingDescription(true);
+                  }}
+                  className="text-sm text-slate-400 underline underline-offset-4 decoration-dotted hover:text-bsi-700"
+                >
+                  Add a description…
+                </button>
+              )}
+            </div>
 
             {/* Countdown — Helvetica Neue, deep teal */}
             <div className="mt-8 md:mt-10 text-center">
@@ -375,6 +478,17 @@ export default function Home() {
                   />
                 </label>
 
+                <label className="block">
+                  <span className="field-label">Description <span className="normal-case font-normal text-slate-400">(optional)</span></span>
+                  <textarea
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="What is this activity about?"
+                    rows={3}
+                    className="input mt-2 w-full resize-none"
+                  />
+                </label>
+
                 <div>
                   <span className="field-label">Set duration</span>
                   <div className="mt-2 grid grid-cols-3 gap-3">
@@ -408,6 +522,9 @@ export default function Home() {
                       <span className="min-w-0">
                         <span className="block truncate text-[15px] font-medium text-slate-900">{a.name}</span>
                         <span className="text-sm text-slate-500 tabular-nums">{formatDuration(a.durationSeconds)}</span>
+                        {a.description ? (
+                          <span className="mt-0.5 block text-sm leading-snug text-slate-500 line-clamp-2">{a.description}</span>
+                        ) : null}
                       </span>
                       <button
                         onClick={() => void removeActivity(a.id)}

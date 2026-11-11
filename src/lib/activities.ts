@@ -4,6 +4,8 @@ export type Activity = {
   /** total duration in seconds */
   durationSeconds: number;
   createdAt: number;
+  /** free-text description shown under the activity name */
+  description?: string;
 };
 
 export const DEFAULT_ACTIVITIES: Activity[] = [
@@ -56,7 +58,12 @@ export function loadLocalActivities(): Activity[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Activity[];
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    return parsed.filter((a) => a && a.name && a.durationSeconds > 0);
+    return parsed
+      .filter((a) => a && a.name && a.durationSeconds > 0)
+      .map((a) => ({
+        ...a,
+        description: typeof a.description === "string" ? a.description : "",
+      }));
   } catch {
     return null;
   }
